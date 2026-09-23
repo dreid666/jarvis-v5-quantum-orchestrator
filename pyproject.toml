@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jarvis-v5-quantum-orchestrator"
-version = "5.0.0.dev0"
+name = "jarvis-v7-quantum-orchestrator"
+version = "7.0.0.dev0"
 description = "Quantum-classical AI orchestration runtime"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,7 +22,7 @@ dev = ["build>=1.2.0", "pytest>=7.0", "pytest-cov>=4.1"]
 jarvis = "jarvis_launch:main"
 
 [tool.setuptools]
-py-modules = ["jarvis_launch", "jarvis_v5", "jarvis_vqc_layer"]
+py-modules = ["jarvis_launch", "jarvis_v7", "jarvis_vqc_layer"]
 
 [tool.setuptools.packages.find]
 include = ["jarvis*"]

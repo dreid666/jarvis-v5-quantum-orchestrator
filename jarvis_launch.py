@@ -1,4 +1,4 @@
-"""Command-line interface for the new package runtime."""
+"""Command-line interface for the JARVIS v7 runtime."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from jarvis.app.launcher import JARVISLauncher
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="jarvis", description="JARVIS v4 unified runtime")
+    parser = argparse.ArgumentParser(prog="jarvis", description="JARVIS v7 unified runtime")
     parser.add_argument("--query", default="Explain quantum-classical hybrid transformer architecture")
     parser.add_argument("--domain", default=None)
     parser.add_argument("--status", action="store_true")
