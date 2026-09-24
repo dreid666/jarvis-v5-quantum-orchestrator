@@ -30,6 +30,7 @@ def test_skill_files_have_frontmatter_and_balanced_fences():
         text = path.read_text()
         assert frontmatter["name"]
         assert frontmatter["description"]
+        assert "~~~" not in text
         assert text.count("```") % 2 == 0
 
 
