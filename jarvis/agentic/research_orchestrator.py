@@ -85,6 +85,10 @@ class UnavailableSandboxRunner:
 class RestrictedExpressionEvaluator(ast.NodeVisitor):
     """Evaluate a narrow set of arithmetic expressions without exec/eval."""
 
+    MAX_NODES = 64
+    MAX_ABS_VALUE = 1_000_000
+    MAX_SEQUENCE_LENGTH = 100
+
     _ALLOWED_FUNCTIONS: dict[str, Callable[..., Any]] = {
         "abs": abs,
         "max": max,
@@ -120,6 +124,8 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as exc:
             raise ValueError(f"invalid syntax: {exc.msg}") from exc
+        if sum(1 for _ in ast.walk(tree)) > self.MAX_NODES:
+            raise ValueError("expression too complex")
         return self.visit(tree)
 
     def generic_visit(self, node: ast.AST) -> Any:
@@ -133,12 +139,16 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
     def visit_Constant(self, node: ast.Constant) -> Any:
         if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
             raise ValueError("only numeric constants are allowed")
-        return node.value
+        return self._ensure_numeric_bounds(node.value)
 
     def visit_List(self, node: ast.List) -> list[Any]:
+        if len(node.elts) > self.MAX_SEQUENCE_LENGTH:
+            raise ValueError("sequence too long")
         return [self.visit(item) for item in node.elts]
 
     def visit_Tuple(self, node: ast.Tuple) -> tuple[Any, ...]:
+        if len(node.elts) > self.MAX_SEQUENCE_LENGTH:
+            raise ValueError("sequence too long")
         return tuple(self.visit(item) for item in node.elts)
 
     def visit_Name(self, node: ast.Name) -> Any:
@@ -160,7 +170,9 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
         operator = operators.get(type(node.op))
         if operator is None:
             raise ValueError(f"operator not allowed: {type(node.op).__name__}")
-        return operator(left, right)
+        if isinstance(node.op, ast.Pow) and abs(right) > 10:
+            raise ValueError("power exponent too large")
+        return self._ensure_numeric_bounds(operator(left, right))
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         value = self.visit(node.operand)
@@ -178,7 +190,9 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
         if node.keywords:
             raise ValueError("keyword arguments are not allowed")
         args = [self.visit(argument) for argument in node.args]
-        return self._ALLOWED_FUNCTIONS[node.func.id](*args)
+        if node.func.id == "pow" and len(args) == 2 and abs(args[1]) > 10:
+            raise ValueError("power exponent too large")
+        return self._ensure_value_bounds(self._ALLOWED_FUNCTIONS[node.func.id](*args))
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
         raise ValueError("attribute access is not allowed")
@@ -188,6 +202,21 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
         raise ValueError("imports are not allowed")
+
+
+    def _ensure_numeric_bounds(self, value: int | float) -> int | float:
+        if not math.isfinite(float(value)):
+            raise ValueError("non-finite numbers are not allowed")
+        if abs(value) > self.MAX_ABS_VALUE:
+            raise ValueError("numeric value too large")
+        return value
+
+    def _ensure_value_bounds(self, value: Any) -> Any:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return self._ensure_numeric_bounds(value)
+        if isinstance(value, (list, tuple)) and len(value) > self.MAX_SEQUENCE_LENGTH:
+            raise ValueError("sequence too long")
+        return value
 
 
 @dataclass(frozen=True)
@@ -345,7 +374,7 @@ class AuthorizedToolRegistry:
         assert tool is not None
         try:
             payload = tool.handler(**dict(call.arguments))
-        except Exception as exc:
+        except ValueError as exc:
             return ToolExecutionResult(
                 status="failed",
                 summary=str(exc),

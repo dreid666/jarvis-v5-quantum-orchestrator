@@ -58,6 +58,9 @@ def test_restricted_evaluator_accepts_allowed_math_and_rejects_dangerous_constru
     with pytest.raises(ValueError, match="invalid syntax"):
         evaluator.evaluate("sum([1, 2]")
 
+    with pytest.raises(ValueError, match="power exponent too large|numeric value too large"):
+        evaluator.evaluate("pow(10, pow(10, 10))")
+
     with pytest.raises(ValueError, match="function not allowed|attribute access is not allowed|name not allowed"):
         evaluator.evaluate("__import__('os').system('id')")
 
@@ -133,6 +136,35 @@ def test_retry_success_allows_execution_to_complete():
     assert result.requires_replan is False
     assert [entry.status for entry in result.trace] == ["failed", "retry_succeeded"]
     assert runner.calls == ["result = 1 / 0", "result = 2 + 2"]
+
+
+def test_retry_unavailable_is_retained_and_reported():
+    runner = SequenceSandboxRunner(
+        [
+            SandboxRunResult(True, False, "first attempt failed", stderr="boom"),
+            SandboxRunResult(False, False, "sandbox backend unavailable", stderr="still unavailable"),
+        ]
+    )
+    orchestrator = ResearchOrchestrator(
+        sandbox_runner=runner,
+        trusted_mode=True,
+        approved_actions=frozenset({"execute_python"}),
+    )
+
+    result = orchestrator.execute_plan(
+        (
+            PlannedToolCall(
+                "sandbox",
+                "execute_python",
+                {"code": "result = 1 / 0"},
+                retry_arguments={"code": "result = 2 + 2"},
+            ),
+        )
+    )
+
+    assert result.success is False
+    assert [entry.status for entry in result.trace] == ["failed", "retry_unavailable"]
+    assert "sandbox backend unavailable" in result.summary.lower()
 
 
 def test_retry_failures_are_retained_and_reported():
