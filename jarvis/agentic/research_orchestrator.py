@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import math
 from dataclasses import dataclass, field
 from numbers import Real
@@ -415,8 +416,11 @@ class AuthorizedToolRegistry:
                 authorization=authorization,
             )
         assert tool is not None
+        arguments = dict(call.arguments)
+        signature = inspect.signature(tool.handler)
+        signature.bind(**arguments)
         try:
-            payload = tool.handler(**dict(call.arguments))
+            payload = tool.handler(**arguments)
         except ValueError as exc:
             return ToolExecutionResult(
                 status="failed",

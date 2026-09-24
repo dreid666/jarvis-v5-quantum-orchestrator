@@ -258,6 +258,22 @@ def test_not_implemented_errors_are_not_masked():
         )
 
 
+def test_tool_argument_binding_errors_still_surface():
+    orchestrator = ResearchOrchestrator()
+
+    def needs_query(*, query: str) -> dict[str, str]:
+        return {"query": query}
+
+    orchestrator.tools.register("needs_query", needs_query)
+
+    with pytest.raises(TypeError):
+        orchestrator.tools.execute(
+            PlannedToolCall("bind", "needs_query", {}),
+            trusted_mode=False,
+            approved_actions=frozenset(),
+        )
+
+
 def test_retry_success_allows_execution_to_complete():
     runner = SequenceSandboxRunner(
         [
