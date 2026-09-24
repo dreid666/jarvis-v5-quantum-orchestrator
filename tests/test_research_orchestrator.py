@@ -266,12 +266,14 @@ def test_tool_argument_binding_errors_still_surface():
 
     orchestrator.tools.register("needs_query", needs_query)
 
-    with pytest.raises(TypeError):
-        orchestrator.tools.execute(
-            PlannedToolCall("bind", "needs_query", {}),
-            trusted_mode=False,
-            approved_actions=frozenset(),
-        )
+    result = orchestrator.tools.execute(
+        PlannedToolCall("bind", "needs_query", {}),
+        trusted_mode=False,
+        approved_actions=frozenset(),
+    )
+
+    assert result.status == "failed"
+    assert "missing a required" in result.summary
 
 
 def test_retry_success_allows_execution_to_complete():

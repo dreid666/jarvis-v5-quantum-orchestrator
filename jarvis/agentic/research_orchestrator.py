@@ -368,7 +368,6 @@ class AuthorizedToolRegistry:
 
     _STRUCTURED_HANDLER_EXCEPTIONS = (
         ArithmeticError,
-        TypeError,
     )
 
     def __init__(self, authorizer: CapabilityAuthorizer | None = None) -> None:
@@ -417,14 +416,29 @@ class AuthorizedToolRegistry:
             )
         assert tool is not None
         arguments = dict(call.arguments)
-        signature = inspect.signature(tool.handler)
-        signature.bind(**arguments)
+        try:
+            signature = inspect.signature(tool.handler)
+            signature.bind(**arguments)
+        except TypeError as exc:
+            return ToolExecutionResult(
+                status="failed",
+                summary=str(exc),
+                payload=None,
+                authorization=authorization,
+            )
         try:
             payload = tool.handler(**arguments)
         except ValueError as exc:
             return ToolExecutionResult(
                 status="failed",
                 summary=str(exc),
+                payload=None,
+                authorization=authorization,
+            )
+        except TypeError:
+            return ToolExecutionResult(
+                status="failed",
+                summary=f"{call.tool_name} execution failed",
                 payload=None,
                 authorization=authorization,
             )
