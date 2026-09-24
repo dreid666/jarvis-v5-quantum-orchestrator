@@ -1,5 +1,18 @@
-"""Aletheia module exports."""
+"""Aletheia layer stub for JARVIS."""
 
-from .module import AletheiaModule
+from __future__ import annotations
 
-__all__ = ["AletheiaModule"]
+from jarvis.modules.base import BaseModule
+
+
+class AletheiaModule(BaseModule):
+    name = "aletheia"
+
+    def initialize(self) -> None:
+        self.ready = True
+
+    def run(self, task, context=None):
+        return {"module": self.name, "status": "ok", "task": getattr(task, "query", str(task))}
+
+    def register_tools(self, registry) -> None:
+        registry.register("aletheia_reason", self.run)

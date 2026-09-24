@@ -2,7 +2,7 @@
 # JARVIS V8 Staging Deployment Script
 # Deploys JARVIS V8 to staging environment with full validation
 
-set -e
+set -euo pipefail
 
 echo "🚀 JARVIS V8 Staging Deployment"
 echo "========================================"
@@ -38,7 +38,7 @@ log "✅ pip found"
 
 # Phase 2: Install Dependencies
 log "Phase 2: Installing dependencies..."
-pip install -q -e . 2>&1 | tee -a "$DEPLOY_LOG"
+pip install -q -e ".[test]" 2>&1 | tee -a "$DEPLOY_LOG"
 log "✅ Dependencies installed"
 
 # Phase 3: Run Tests
@@ -69,9 +69,11 @@ from jarvis.observability import get_collector, get_logger
 print("Collecting baseline metrics...")
 orchestrator = JARVISOrchestrator()
 status = orchestrator.status()
-print(f"  Modules loaded: {len(status['modules']) if status.get('modules') else 0}")
+print(f"  Modules loaded: {len(status['modules'].get('loaded', [])) if status.get('modules') else 0}")
 print(f"  Tools available: {len(status['tools']) if status.get('tools') else 0}")
 print(f"  Settings domain: {status['settings']['domain']}")
+if status.get("modules", {}).get("failed"):
+    raise SystemExit(f"Module load failures detected: {status['modules']['failed']}")
 print("✅ Baseline metrics collected")
 EOF
 

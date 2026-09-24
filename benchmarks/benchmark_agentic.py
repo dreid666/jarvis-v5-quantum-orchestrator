@@ -1,6 +1,6 @@
 """Tests for the safe evaluator."""
 
-from jarvis.execution.safe_python import SafePythonEvaluator
+from jarvis.benchmarks import SafePythonEvaluator
 
 
 def test_safe_python_evaluates_arithmetic():

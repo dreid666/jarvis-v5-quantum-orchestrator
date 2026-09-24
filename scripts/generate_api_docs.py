@@ -6,6 +6,8 @@ Generates Markdown documentation from Python docstrings and type annotations.
 from __future__ import annotations
 
 import inspect
+import importlib
+import sys
 from pathlib import Path
 from typing import Any, Callable, get_type_hints
 from dataclasses import is_dataclass, fields
@@ -86,6 +88,10 @@ def generate_api_reference(package_path: str, output_path: str) -> None:
     package_path_obj = Path(package_path)
     output_path_obj = Path(output_path)
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    repo_root = package_path_obj.resolve().parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    package_root = package_path_obj.name
     
     docs = []
     docs.append("# JARVIS V8 API Reference\n")
@@ -97,17 +103,16 @@ def generate_api_reference(package_path: str, output_path: str) -> None:
             continue
         
         rel_path = py_file.relative_to(package_path_obj)
-        module_name = str(rel_path.with_suffix(''))
+        module_parts = rel_path.with_suffix("").parts
+        if module_parts[-1] == "__init__":
+            module_name = ".".join((package_root, *module_parts[:-1])) if module_parts[:-1] else package_root
+        else:
+            module_name = ".".join((package_root, *module_parts))
         
         try:
-            # Import module dynamically
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(module_name, py_file)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                docs.append(generate_module_docs(module))
-                docs.append("\n---\n\n")
+            module = importlib.import_module(module_name)
+            docs.append(generate_module_docs(module))
+            docs.append("\n---\n\n")
         except Exception as e:
             print(f"Warning: Could not document {module_name}: {e}")
     

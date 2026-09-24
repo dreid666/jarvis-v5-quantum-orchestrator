@@ -31,7 +31,7 @@ class PromptGuardrail:
         if not isinstance(text, str):
             raise ValueError("prompt must be a string")
         value = unicodedata.normalize("NFKC", text).strip()
-        return re.sub(r"\s+", " ", value)
+        return re.sub(r"[^\S\n]+", " ", value)
 
     def screen(self, prompt: str) -> tuple[bool, tuple[str, ...]]:
         text = self.normalize(prompt)

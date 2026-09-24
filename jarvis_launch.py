@@ -39,3 +39,7 @@ def main(argv: list[str] | None = None) -> None:
             if query: print(launcher.run(query, domain=args.domain))
         return
     print(launcher.run(args.query, domain=args.domain))
+
+
+if __name__ == "__main__":
+    main()

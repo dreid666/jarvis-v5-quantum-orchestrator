@@ -15,7 +15,11 @@ def _sanitize(value: Any) -> Any:
     if isinstance(value, str):
         return _SECRET.sub(r"\1=[REDACTED]", value)[:1000]
     if isinstance(value, dict):
-        return {str(k): _sanitize(v) for k, v in value.items() if str(k).casefold() not in {"token", "password", "secret", "api_key"}}
+        return {
+            str(k): _sanitize(v)
+            for k, v in value.items()
+            if str(k).casefold().replace("-", "_") not in {"token", "password", "secret", "api_key"}
+        }
     if isinstance(value, (list, tuple)):
         return [_sanitize(v) for v in value]
     return value

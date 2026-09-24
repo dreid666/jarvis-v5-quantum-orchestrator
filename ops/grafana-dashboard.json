@@ -31,6 +31,12 @@
       },
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "id": 2,
+      "targets": [
+        {
+          "expr": "rate(jarvis_operation_duration_seconds_sum[5m]) / rate(jarvis_operation_duration_seconds_count[5m]) * 1000",
+          "legendFormat": "avg duration"
+        }
+      ],
       "title": "Average Operation Duration",
       "type": "timeseries"
     },
@@ -52,6 +58,12 @@
       },
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "id": 3,
+      "targets": [
+        {
+          "expr": "rate(jarvis_operations_success[5m]) * 100",
+          "legendFormat": "success rate"
+        }
+      ],
       "title": "Success Rate",
       "type": "gauge"
     },
@@ -65,6 +77,12 @@
       },
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
       "id": 4,
+      "targets": [
+        {
+          "expr": "rate(jarvis_operations_total[5m])",
+          "legendFormat": "ops/sec"
+        }
+      ],
       "title": "Throughput (requests/sec)",
       "type": "timeseries"
     },
@@ -78,6 +96,12 @@
       },
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "id": 5,
+      "targets": [
+        {
+          "expr": "rate(jarvis_errors_total[5m])",
+          "legendFormat": "errors/sec"
+        }
+      ],
       "title": "Error Rate",
       "type": "timeseries"
     }

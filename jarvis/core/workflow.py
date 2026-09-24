@@ -36,18 +36,23 @@ class Workflow:
     def topological_order(self) -> List[WorkflowNode]:
         """Return nodes in topological order based on dependencies."""
         visited = set()
+        active = set()
         result = []
         
         def visit(node_name: str) -> None:
             if node_name in visited:
                 return
-            visited.add(node_name)
+            if node_name in active:
+                raise ValueError(f"cycle detected at workflow node: {node_name}")
+            active.add(node_name)
             
             node = self.get_node(node_name)
             if node:
                 for dep in node.dependencies:
                     visit(dep)
+                visited.add(node_name)
                 result.append(node)
+            active.remove(node_name)
         
         for node in self.nodes:
             visit(node.name)
