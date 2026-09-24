@@ -46,7 +46,7 @@ def test_blocked_sandbox_execution_when_backend_unavailable():
     )
 
     assert result.success is False
-    assert result.requires_replan is True
+    assert result.requires_replan is False
     assert result.trace[0].status == "unavailable"
     assert "Sandbox backend unavailable" in result.trace[0].summary
 
@@ -163,6 +163,7 @@ def test_retry_unavailable_is_retained_and_reported():
     )
 
     assert result.success is False
+    assert result.requires_replan is False
     assert [entry.status for entry in result.trace] == ["failed", "retry_unavailable"]
     assert "sandbox backend unavailable" in result.summary.lower()
 

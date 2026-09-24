@@ -504,11 +504,13 @@ class ResearchOrchestrator:
                 if retry_result.status == "success":
                     continue
                 failure_summary = retry_result.summary
+            terminal_status = trace[-1].status
+            requires_replan = terminal_status in {"failed", "retry_failed"}
             return RunResult(
                 success=False,
-                summary=f"Execution requires replanning after step {call.step}: {failure_summary}",
+                summary=f"Execution {'requires replanning' if requires_replan else 'stopped'} after step {call.step}: {failure_summary}",
                 trace=tuple(trace),
-                requires_replan=True,
+                requires_replan=requires_replan,
             )
         return RunResult(success=True, summary="Execution completed successfully.", trace=tuple(trace))
 
