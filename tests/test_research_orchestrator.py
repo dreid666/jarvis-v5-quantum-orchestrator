@@ -8,9 +8,12 @@ from pathlib import Path
 import pytest
 
 from jarvis.agentic.research_orchestrator import (
+    AuthorizedToolRegistry,
     NullRetrievalProvider,
     PlannedToolCall,
     ResearchOrchestrator,
+    RetrievalDocument,
+    RetrievalResult,
     RestrictedExpressionEvaluator,
     SandboxRunResult,
 )
@@ -24,6 +27,16 @@ class SequenceSandboxRunner:
     def run(self, code: str) -> SandboxRunResult:
         self.calls.append(code)
         return self._results.pop(0)
+
+
+class StaticRetrievalProvider:
+    def __init__(self, result: RetrievalResult) -> None:
+        self._result = result
+        self.calls: list[tuple[str, int]] = []
+
+    def search(self, query: str, *, limit: int = 3) -> RetrievalResult:
+        self.calls.append((query, limit))
+        return self._result
 
 
 def test_research_orchestrator_module_contains_no_exec_or_eval_calls():
@@ -65,6 +78,20 @@ def test_restricted_evaluator_accepts_allowed_math_and_rejects_dangerous_constru
         evaluator.evaluate("__import__('os').system('id')")
 
 
+def test_restricted_evaluator_enforces_expression_length_and_depth_budgets():
+    evaluator = RestrictedExpressionEvaluator()
+
+    with pytest.raises(ValueError, match="expression too long"):
+        evaluator.evaluate(" + ".join(["1"] * 200))
+
+    deep_expression = "1"
+    for _ in range(20):
+        deep_expression = f"sqrt({deep_expression})"
+
+    with pytest.raises(ValueError, match="expression too deeply nested"):
+        evaluator.evaluate(deep_expression)
+
+
 def test_high_risk_tool_calls_require_trusted_mode_and_approval():
     plan = (PlannedToolCall("sandbox", "execute_python", {"code": "result = 2 + 2"}),)
 
@@ -79,6 +106,13 @@ def test_high_risk_tool_calls_require_trusted_mode_and_approval():
     assert "explicit approval" in missing_approval_result.trace[0].summary
 
 
+def test_unknown_tool_capabilities_are_rejected_at_registration():
+    registry = AuthorizedToolRegistry()
+
+    with pytest.raises(ValueError, match="unsupported capabilities"):
+        registry.register("custom_tool", lambda: None, capabilities=("unknown_capability",))
+
+
 def test_retrieval_unavailable_does_not_invent_citations():
     provider = NullRetrievalProvider()
     result = provider.search("quantum transformers")
@@ -87,6 +121,63 @@ def test_retrieval_unavailable_does_not_invent_citations():
     assert result.documents == ()
     assert "unavailable" in result.message.lower()
     assert "citation" not in result.message.lower()
+
+
+def test_provider_backed_retrieval_requires_trusted_mode_and_approval():
+    provider = StaticRetrievalProvider(
+        RetrievalResult(
+            available=True,
+            documents=(RetrievalDocument(title="Paper", citation="Doe et al. (2026)", uri="https://example.com"),),
+            message="ok",
+        )
+    )
+    plan = (PlannedToolCall("retrieve", "retrieve_literature", {"query": "quantum transformers"}),)
+
+    untrusted = ResearchOrchestrator(retrieval_provider=provider, approved_actions=frozenset({"retrieve_literature"}))
+    untrusted_result = untrusted.execute_plan(plan)
+    assert untrusted_result.trace[0].status == "denied"
+    assert "trusted mode" in untrusted_result.trace[0].summary
+
+    missing_approval = ResearchOrchestrator(retrieval_provider=provider, trusted_mode=True)
+    missing_approval_result = missing_approval.execute_plan(plan)
+    assert missing_approval_result.trace[0].status == "denied"
+    assert "explicit approval" in missing_approval_result.trace[0].summary
+
+    approved = ResearchOrchestrator(
+        retrieval_provider=provider,
+        trusted_mode=True,
+        approved_actions=frozenset({"retrieve_literature"}),
+    )
+    approved_result = approved.execute_plan(plan)
+    assert approved_result.success is True
+    assert approved_result.trace[0].status == "success"
+    assert provider.calls == [("quantum transformers", 3)]
+
+
+def test_source_less_retrieval_results_fail_closed():
+    provider = StaticRetrievalProvider(
+        RetrievalResult(
+            available=True,
+            documents=(RetrievalDocument(title="Paper", citation="", uri=""),),
+            message="ungrounded",
+        )
+    )
+    orchestrator = ResearchOrchestrator(
+        retrieval_provider=provider,
+        trusted_mode=True,
+        approved_actions=frozenset({"retrieve_literature"}),
+    )
+
+    result = orchestrator.execute_plan(
+        (
+            PlannedToolCall("retrieve", "retrieve_literature", {"query": "quantum transformers"}),
+        )
+    )
+
+    assert result.success is False
+    assert result.requires_replan is True
+    assert result.trace[0].status == "failed"
+    assert "missing source metadata" in result.trace[0].summary.lower()
 
 
 def test_symbolic_verification_uses_tolerance_for_numeric_results():
@@ -106,6 +197,24 @@ def test_symbolic_verification_uses_tolerance_for_numeric_results():
         approved_actions=frozenset(),
     )
     assert nan_result.payload["matches_expected"] is False
+
+
+def test_handler_exceptions_become_structured_failures():
+    orchestrator = ResearchOrchestrator()
+
+    def explode() -> None:
+        raise RuntimeError("boom")
+
+    orchestrator.tools.register("explode", explode)
+    result = orchestrator.tools.execute(
+        PlannedToolCall("explode", "explode", {}),
+        trusted_mode=False,
+        approved_actions=frozenset(),
+    )
+
+    assert result.status == "failed"
+    assert result.summary == "explode execution failed"
+    assert result.payload is None
 
 
 def test_retry_success_allows_execution_to_complete():
@@ -198,4 +307,3 @@ def test_retry_failures_are_retained_and_reported():
     assert runner.calls == ["result = 1 / 0", "result = 1 / 0"]
     assert "step sandbox" in result.summary.lower()
     assert "retry attempt failed" in result.summary.lower()
-

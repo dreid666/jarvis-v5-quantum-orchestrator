@@ -9,6 +9,7 @@ jarvis/types.py
 jarvis/agentic/__init__.py
 jarvis/agentic/copilot.py
 jarvis/agentic/policy.py
+jarvis/agentic/research_orchestrator.py
 jarvis/agentic/wingman.py
 jarvis/app/__init__.py
 jarvis/app/cli.py
@@ -62,5 +63,7 @@ tests/test_agentic_policy.py
 tests/test_integration_staging.py
 tests/test_jarvis_v7.py
 tests/test_quantum_backends.py
+tests/test_research_orchestrator.py
 tests/test_runtime.py
 tests/test_safe_python.py
+tests/test_skill_files.py

@@ -85,7 +85,9 @@ class UnavailableSandboxRunner:
 class RestrictedExpressionEvaluator(ast.NodeVisitor):
     """Evaluate a narrow set of arithmetic expressions without exec/eval."""
 
+    MAX_EXPRESSION_LENGTH = 512
     MAX_NODES = 64
+    MAX_DEPTH = 16
     MAX_ABS_VALUE = 1_000_000
     MAX_SEQUENCE_LENGTH = 100
 
@@ -120,12 +122,16 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
     )
 
     def evaluate(self, expression: str) -> Any:
+        if len(expression) > self.MAX_EXPRESSION_LENGTH:
+            raise ValueError("expression too long")
         try:
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as exc:
             raise ValueError(f"invalid syntax: {exc.msg}") from exc
         if sum(1 for _ in ast.walk(tree)) > self.MAX_NODES:
             raise ValueError("expression too complex")
+        if self._tree_depth(tree) > self.MAX_DEPTH:
+            raise ValueError("expression too deeply nested")
         return self.visit(tree)
 
     def generic_visit(self, node: ast.AST) -> Any:
@@ -218,6 +224,12 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
             raise ValueError("sequence too long")
         return value
 
+    def _tree_depth(self, node: ast.AST) -> int:
+        children = list(ast.iter_child_nodes(node))
+        if not children:
+            return 1
+        return 1 + max(self._tree_depth(child) for child in children)
+
 
 @dataclass(frozen=True)
 class AuthorizationDecision:
@@ -284,6 +296,7 @@ class CapabilityAuthorizer:
     """Authorize tool invocations using an explicit allowlist and approvals."""
 
     HIGH_RISK_CAPABILITIES = frozenset({"code_execution", "physical_action", "provider_action"})
+    KNOWN_CAPABILITIES = HIGH_RISK_CAPABILITIES
 
     def authorize(
         self,
@@ -299,6 +312,18 @@ class CapabilityAuthorizer:
                 allowed=False,
                 risk="unknown",
                 reason="tool is not registered",
+                trusted_mode=trusted_mode,
+                approval_granted=False,
+            )
+
+        unsupported_capabilities = tool.capabilities - self.KNOWN_CAPABILITIES
+        if unsupported_capabilities:
+            capability_list = ", ".join(sorted(unsupported_capabilities))
+            return AuthorizationDecision(
+                tool_name=tool_name,
+                allowed=False,
+                risk="unknown",
+                reason=f"tool uses unsupported capabilities: {capability_list}",
                 trusted_mode=trusted_mode,
                 approval_granted=False,
             )
@@ -348,7 +373,16 @@ class AuthorizedToolRegistry:
         capabilities: tuple[str, ...] = (),
         description: str = "",
     ) -> None:
-        self._tools[name] = RegisteredTool(handler=handler, capabilities=frozenset(capabilities), description=description)
+        normalized_capabilities = frozenset(capabilities)
+        unsupported_capabilities = normalized_capabilities - self._authorizer.KNOWN_CAPABILITIES
+        if unsupported_capabilities:
+            capability_list = ", ".join(sorted(unsupported_capabilities))
+            raise ValueError(f"unsupported capabilities for {name}: {capability_list}")
+        self._tools[name] = RegisteredTool(
+            handler=handler,
+            capabilities=normalized_capabilities,
+            description=description,
+        )
 
     def execute(
         self,
@@ -381,6 +415,13 @@ class AuthorizedToolRegistry:
                 payload=None,
                 authorization=authorization,
             )
+        except Exception:
+            return ToolExecutionResult(
+                status="failed",
+                summary=f"{call.tool_name} execution failed",
+                payload=None,
+                authorization=authorization,
+            )
         status = "success"
         summary = "completed"
         if isinstance(payload, SandboxRunResult):
@@ -390,8 +431,15 @@ class AuthorizedToolRegistry:
                 status = "failed"
             summary = payload.summary
         elif isinstance(payload, RetrievalResult):
-            status = "success" if payload.available else "unavailable"
-            summary = payload.message
+            invalid_documents = tuple(
+                document for document in payload.documents if not (document.citation.strip() or document.uri.strip())
+            )
+            if payload.available and (not payload.documents or invalid_documents):
+                status = "failed"
+                summary = "retrieval result missing source metadata"
+            else:
+                status = "success" if payload.available else "unavailable"
+                summary = payload.message
         return ToolExecutionResult(status=status, summary=summary, payload=payload, authorization=authorization)
 
 
@@ -418,7 +466,12 @@ class ResearchOrchestrator:
 
     def _register_default_tools(self) -> None:
         self.tools.register("draft_research_plan", self._draft_research_plan, description="Create a planning-only research brief")
-        self.tools.register("retrieve_literature", self._retrieve_literature, description="Retrieve source-backed documents")
+        self.tools.register(
+            "retrieve_literature",
+            self._retrieve_literature,
+            capabilities=("provider_action",),
+            description="Retrieve source-backed documents",
+        )
         self.tools.register("verify_symbolic", self._verify_symbolic, description="Verify arithmetic with a restricted evaluator")
         self.tools.register(
             "execute_python",
