@@ -180,6 +180,31 @@ def test_source_less_retrieval_results_fail_closed():
     assert "missing source metadata" in result.trace[0].summary.lower()
 
 
+def test_empty_available_retrieval_results_use_provider_message():
+    provider = StaticRetrievalProvider(
+        RetrievalResult(
+            available=True,
+            documents=(),
+            message="no matches found",
+        )
+    )
+    orchestrator = ResearchOrchestrator(
+        retrieval_provider=provider,
+        trusted_mode=True,
+        approved_actions=frozenset({"retrieve_literature"}),
+    )
+
+    result = orchestrator.execute_plan(
+        (
+            PlannedToolCall("retrieve", "retrieve_literature", {"query": "quantum transformers"}),
+        )
+    )
+
+    assert result.success is True
+    assert result.trace[0].status == "success"
+    assert result.trace[0].summary == "no matches found"
+
+
 def test_symbolic_verification_uses_tolerance_for_numeric_results():
     orchestrator = ResearchOrchestrator()
     result = orchestrator.tools.execute(
@@ -203,7 +228,7 @@ def test_handler_exceptions_become_structured_failures():
     orchestrator = ResearchOrchestrator()
 
     def explode() -> None:
-        raise RuntimeError("boom")
+        raise TypeError("boom")
 
     orchestrator.tools.register("explode", explode)
     result = orchestrator.tools.execute(

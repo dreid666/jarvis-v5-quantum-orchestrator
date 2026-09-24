@@ -369,7 +369,6 @@ class AuthorizedToolRegistry:
         ArithmeticError,
         AttributeError,
         LookupError,
-        RuntimeError,
         TypeError,
     )
 
@@ -448,7 +447,7 @@ class AuthorizedToolRegistry:
             invalid_documents = tuple(
                 document for document in payload.documents if not (document.citation.strip() or document.uri.strip())
             )
-            if payload.available and (not payload.documents or invalid_documents):
+            if payload.available and invalid_documents:
                 status = "failed"
                 summary = "retrieval result missing source metadata"
             else:
