@@ -18,12 +18,10 @@ Requires-Dist: pytket>=1.20; extra == "pytket"
 Provides-Extra: test
 Requires-Dist: pytest>=7.0; extra == "test"
 Requires-Dist: pytest-cov>=4.1; extra == "test"
-Requires-Dist: PyYAML>=6.0.1; extra == "test"
 Provides-Extra: dev
 Requires-Dist: build>=1.2.0; extra == "dev"
 Requires-Dist: pytest>=7.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.1; extra == "dev"
-Requires-Dist: PyYAML>=6.0.1; extra == "dev"
 
 # Add v7 compatibility runtime, safe evaluator, tests, and benchmark
 

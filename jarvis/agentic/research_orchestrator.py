@@ -367,8 +367,6 @@ class AuthorizedToolRegistry:
 
     _STRUCTURED_HANDLER_EXCEPTIONS = (
         ArithmeticError,
-        AttributeError,
-        LookupError,
         TypeError,
     )
 
