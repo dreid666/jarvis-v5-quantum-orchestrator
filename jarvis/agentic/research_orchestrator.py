@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import math
 from dataclasses import dataclass, field
 from numbers import Real
@@ -85,7 +86,9 @@ class UnavailableSandboxRunner:
 class RestrictedExpressionEvaluator(ast.NodeVisitor):
     """Evaluate a narrow set of arithmetic expressions without exec/eval."""
 
+    MAX_EXPRESSION_LENGTH = 512
     MAX_NODES = 64
+    MAX_DEPTH = 16
     MAX_ABS_VALUE = 1_000_000
     MAX_SEQUENCE_LENGTH = 100
 
@@ -120,12 +123,16 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
     )
 
     def evaluate(self, expression: str) -> Any:
+        if len(expression) > self.MAX_EXPRESSION_LENGTH:
+            raise ValueError("expression too long")
         try:
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as exc:
             raise ValueError(f"invalid syntax: {exc.msg}") from exc
         if sum(1 for _ in ast.walk(tree)) > self.MAX_NODES:
             raise ValueError("expression too complex")
+        if self._tree_depth(tree) > self.MAX_DEPTH:
+            raise ValueError("expression too deeply nested")
         return self.visit(tree)
 
     def generic_visit(self, node: ast.AST) -> Any:
@@ -218,6 +225,16 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
             raise ValueError("sequence too long")
         return value
 
+    def _tree_depth(self, node: ast.AST) -> int:
+        children = iter(ast.iter_child_nodes(node))
+        try:
+            max_depth = self._tree_depth(next(children))
+        except StopIteration:
+            return 1
+        for child in children:
+            max_depth = max(max_depth, self._tree_depth(child))
+        return 1 + max_depth
+
 
 @dataclass(frozen=True)
 class AuthorizationDecision:
@@ -284,6 +301,7 @@ class CapabilityAuthorizer:
     """Authorize tool invocations using an explicit allowlist and approvals."""
 
     HIGH_RISK_CAPABILITIES = frozenset({"code_execution", "physical_action", "provider_action"})
+    KNOWN_CAPABILITIES = HIGH_RISK_CAPABILITIES
 
     def authorize(
         self,
@@ -299,6 +317,18 @@ class CapabilityAuthorizer:
                 allowed=False,
                 risk="unknown",
                 reason="tool is not registered",
+                trusted_mode=trusted_mode,
+                approval_granted=False,
+            )
+
+        unsupported_capabilities = tool.capabilities - self.KNOWN_CAPABILITIES
+        if unsupported_capabilities:
+            capability_list = ", ".join(sorted(unsupported_capabilities))
+            return AuthorizationDecision(
+                tool_name=tool_name,
+                allowed=False,
+                risk="unknown",
+                reason=f"tool uses unsupported capabilities: {capability_list}",
                 trusted_mode=trusted_mode,
                 approval_granted=False,
             )
@@ -336,6 +366,10 @@ class CapabilityAuthorizer:
 class AuthorizedToolRegistry:
     """Registered tool execution with explicit authorization decisions."""
 
+    _STRUCTURED_HANDLER_EXCEPTIONS = (
+        ArithmeticError,
+    )
+
     def __init__(self, authorizer: CapabilityAuthorizer | None = None) -> None:
         self._tools: dict[str, RegisteredTool] = {}
         self._authorizer = authorizer or CapabilityAuthorizer()
@@ -348,7 +382,16 @@ class AuthorizedToolRegistry:
         capabilities: tuple[str, ...] = (),
         description: str = "",
     ) -> None:
-        self._tools[name] = RegisteredTool(handler=handler, capabilities=frozenset(capabilities), description=description)
+        normalized_capabilities = frozenset(capabilities)
+        unsupported_capabilities = normalized_capabilities - self._authorizer.KNOWN_CAPABILITIES
+        if unsupported_capabilities:
+            capability_list = ", ".join(sorted(unsupported_capabilities))
+            raise ValueError(f"unsupported capabilities for {name}: {capability_list}")
+        self._tools[name] = RegisteredTool(
+            handler=handler,
+            capabilities=normalized_capabilities,
+            description=description,
+        )
 
     def execute(
         self,
@@ -372,12 +415,39 @@ class AuthorizedToolRegistry:
                 authorization=authorization,
             )
         assert tool is not None
+        arguments = dict(call.arguments)
         try:
-            payload = tool.handler(**dict(call.arguments))
+            signature = inspect.signature(tool.handler)
+            signature.bind(**arguments)
+        except TypeError as exc:
+            return ToolExecutionResult(
+                status="failed",
+                summary=str(exc),
+                payload=None,
+                authorization=authorization,
+            )
+        try:
+            payload = tool.handler(**arguments)
         except ValueError as exc:
             return ToolExecutionResult(
                 status="failed",
                 summary=str(exc),
+                payload=None,
+                authorization=authorization,
+            )
+        except TypeError:
+            return ToolExecutionResult(
+                status="failed",
+                summary=f"{call.tool_name} execution failed",
+                payload=None,
+                authorization=authorization,
+            )
+        except NotImplementedError:
+            raise
+        except self._STRUCTURED_HANDLER_EXCEPTIONS:
+            return ToolExecutionResult(
+                status="failed",
+                summary=f"{call.tool_name} execution failed",
                 payload=None,
                 authorization=authorization,
             )
@@ -390,8 +460,15 @@ class AuthorizedToolRegistry:
                 status = "failed"
             summary = payload.summary
         elif isinstance(payload, RetrievalResult):
-            status = "success" if payload.available else "unavailable"
-            summary = payload.message
+            invalid_documents = tuple(
+                document for document in payload.documents if not (document.citation.strip() or document.uri.strip())
+            )
+            if payload.available and invalid_documents:
+                status = "failed"
+                summary = "retrieval result missing source metadata"
+            else:
+                status = "success" if payload.available else "unavailable"
+                summary = payload.message
         return ToolExecutionResult(status=status, summary=summary, payload=payload, authorization=authorization)
 
 
@@ -418,7 +495,12 @@ class ResearchOrchestrator:
 
     def _register_default_tools(self) -> None:
         self.tools.register("draft_research_plan", self._draft_research_plan, description="Create a planning-only research brief")
-        self.tools.register("retrieve_literature", self._retrieve_literature, description="Retrieve source-backed documents")
+        self.tools.register(
+            "retrieve_literature",
+            self._retrieve_literature,
+            capabilities=("provider_action",),
+            description="Retrieve source-backed documents",
+        )
         self.tools.register("verify_symbolic", self._verify_symbolic, description="Verify arithmetic with a restricted evaluator")
         self.tools.register(
             "execute_python",
