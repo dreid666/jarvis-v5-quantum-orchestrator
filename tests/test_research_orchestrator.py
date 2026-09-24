@@ -86,6 +86,48 @@ def test_retrieval_unavailable_does_not_invent_citations():
     assert "citation" not in result.message.lower()
 
 
+def test_symbolic_verification_uses_tolerance_for_numeric_results():
+    orchestrator = ResearchOrchestrator()
+    result = orchestrator.tools.execute(
+        PlannedToolCall("verify", "verify_symbolic", {"expression": "sqrt(2) * sqrt(2)", "expected": 2.0}),
+        trusted_mode=False,
+        approved_actions=frozenset(),
+    )
+
+    assert result.status == "success"
+    assert result.payload["matches_expected"] is True
+
+
+def test_retry_success_allows_execution_to_complete():
+    runner = SequenceSandboxRunner(
+        [
+            SandboxRunResult(True, False, "first attempt failed", stderr="boom"),
+            SandboxRunResult(True, True, "retry attempt succeeded", output=4),
+        ]
+    )
+    orchestrator = ResearchOrchestrator(
+        sandbox_runner=runner,
+        trusted_mode=True,
+        approved_actions=frozenset({"execute_python"}),
+    )
+
+    result = orchestrator.execute_plan(
+        (
+            PlannedToolCall(
+                "sandbox",
+                "execute_python",
+                {"code": "result = 1 / 0"},
+                retry_arguments={"code": "result = 2 + 2"},
+            ),
+        )
+    )
+
+    assert result.success is True
+    assert result.requires_replan is False
+    assert [entry.status for entry in result.trace] == ["failed", "retry_succeeded"]
+    assert runner.calls == ["result = 1 / 0", "result = 2 + 2"]
+
+
 def test_retry_failures_are_retained_and_reported():
     runner = SequenceSandboxRunner(
         [

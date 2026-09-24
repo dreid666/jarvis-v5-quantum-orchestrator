@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import math
 from dataclasses import dataclass, field
+from numbers import Real
 from typing import Any, Callable, Mapping, Protocol
 
 from jarvis.security.guardrails import PromptGuardrail
@@ -342,7 +343,15 @@ class AuthorizedToolRegistry:
                 authorization=authorization,
             )
         assert tool is not None
-        payload = tool.handler(**dict(call.arguments))
+        try:
+            payload = tool.handler(**dict(call.arguments))
+        except Exception as exc:
+            return ToolExecutionResult(
+                status="failed",
+                summary=str(exc),
+                payload=None,
+                authorization=authorization,
+            )
         status = "success"
         summary = "completed"
         if isinstance(payload, SandboxRunResult):
@@ -402,7 +411,13 @@ class ResearchOrchestrator:
 
     def _verify_symbolic(self, expression: str, expected: Any | None = None) -> dict[str, Any]:
         value = self.evaluator.evaluate(expression)
-        return {"value": value, "matches_expected": expected is None or value == expected}
+        matches_expected = True
+        if expected is not None:
+            if isinstance(value, Real) and isinstance(expected, Real) and not isinstance(value, bool) and not isinstance(expected, bool):
+                matches_expected = math.isclose(float(value), float(expected), rel_tol=1e-9, abs_tol=1e-9)
+            else:
+                matches_expected = value == expected
+        return {"value": value, "matches_expected": matches_expected}
 
     def _execute_python(self, code: str) -> SandboxRunResult:
         return self.sandbox_runner.run(code)
