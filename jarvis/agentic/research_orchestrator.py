@@ -424,6 +424,7 @@ class ResearchOrchestrator:
             )
             if result.status == "success":
                 continue
+            failure_summary = result.summary
             if result.status == "failed" and call.retry_arguments is not None:
                 retry_call = PlannedToolCall(call.step, call.tool_name, call.retry_arguments)
                 retry_result = self.tools.execute(
@@ -443,9 +444,10 @@ class ResearchOrchestrator:
                 )
                 if retry_result.status == "success":
                     continue
+                failure_summary = retry_result.summary
             return RunResult(
                 success=False,
-                summary=f"Execution requires replanning after step {call.step}: {result.summary}",
+                summary=f"Execution requires replanning after step {call.step}: {failure_summary}",
                 trace=tuple(trace),
                 requires_replan=True,
             )

@@ -112,4 +112,5 @@ def test_retry_failures_are_retained_and_reported():
     assert [entry.status for entry in result.trace] == ["failed", "retry_failed"]
     assert runner.calls == ["result = 1 / 0", "result = 1 / 0"]
     assert "step sandbox" in result.summary.lower()
+    assert "retry attempt failed" in result.summary.lower()
 
