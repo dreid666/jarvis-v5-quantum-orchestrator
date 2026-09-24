@@ -225,10 +225,14 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
         return value
 
     def _tree_depth(self, node: ast.AST) -> int:
-        children = list(ast.iter_child_nodes(node))
-        if not children:
+        children = iter(ast.iter_child_nodes(node))
+        try:
+            max_depth = self._tree_depth(next(children))
+        except StopIteration:
             return 1
-        return 1 + max(self._tree_depth(child) for child in children)
+        for child in children:
+            max_depth = max(max_depth, self._tree_depth(child))
+        return 1 + max_depth
 
 
 @dataclass(frozen=True)
