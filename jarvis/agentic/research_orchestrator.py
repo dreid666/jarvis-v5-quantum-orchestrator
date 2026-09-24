@@ -115,7 +115,10 @@ class RestrictedExpressionEvaluator(ast.NodeVisitor):
     )
 
     def evaluate(self, expression: str) -> Any:
-        tree = ast.parse(expression, mode="eval")
+        try:
+            tree = ast.parse(expression, mode="eval")
+        except SyntaxError as exc:
+            raise ValueError(f"invalid syntax: {exc.msg}") from exc
         return self.visit(tree)
 
     def generic_visit(self, node: ast.AST) -> Any:
@@ -436,7 +439,7 @@ class ResearchOrchestrator:
                     TraceEntry(
                         step=f"{call.step}:retry",
                         tool_name=call.tool_name,
-                        status="retry_succeeded" if retry_result.status == "success" else "retry_failed",
+                        status="retry_succeeded" if retry_result.status == "success" else f"retry_{retry_result.status}",
                         summary=retry_result.summary,
                         authorization=retry_result.authorization,
                         payload=retry_result.payload,

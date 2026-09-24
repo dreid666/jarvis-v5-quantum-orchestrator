@@ -55,6 +55,9 @@ def test_restricted_evaluator_accepts_allowed_math_and_rejects_dangerous_constru
     evaluator = RestrictedExpressionEvaluator()
     assert evaluator.evaluate("sum([1, 2, 3]) + sqrt(16)") == 10
 
+    with pytest.raises(ValueError, match="invalid syntax"):
+        evaluator.evaluate("sum([1, 2]")
+
     with pytest.raises(ValueError, match="function not allowed|attribute access is not allowed|name not allowed"):
         evaluator.evaluate("__import__('os').system('id')")
 
