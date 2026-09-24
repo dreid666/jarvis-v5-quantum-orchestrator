@@ -424,7 +424,7 @@ class ResearchOrchestrator:
             )
             if result.status == "success":
                 continue
-            if call.retry_arguments is not None:
+            if result.status == "failed" and call.retry_arguments is not None:
                 retry_call = PlannedToolCall(call.step, call.tool_name, call.retry_arguments)
                 retry_result = self.tools.execute(
                     retry_call,
