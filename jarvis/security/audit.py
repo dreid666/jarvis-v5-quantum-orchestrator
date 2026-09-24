@@ -11,11 +11,15 @@ from typing import Any
 _SECRET = re.compile(r"(?i)(token|password|secret|api[_-]?key)\s*[:=]\s*[^\s,}]+")
 
 
+def _is_sensitive_key(key: Any) -> bool:
+    return str(key).casefold().replace("-", "_") in {"token", "password", "secret", "api_key"}
+
+
 def _sanitize(value: Any) -> Any:
     if isinstance(value, str):
         return _SECRET.sub(r"\1=[REDACTED]", value)[:1000]
     if isinstance(value, dict):
-        return {str(k): _sanitize(v) for k, v in value.items() if str(k).casefold() not in {"token", "password", "secret", "api_key"}}
+        return {str(k): _sanitize(v) for k, v in value.items() if not _is_sensitive_key(k)}
     if isinstance(value, (list, tuple)):
         return [_sanitize(v) for v in value]
     return value

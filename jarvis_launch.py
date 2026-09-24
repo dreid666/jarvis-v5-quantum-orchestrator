@@ -4,7 +4,7 @@ import argparse
 import json
 from jarvis.agentic.copilot import CopilotAgent
 from jarvis.agentic.wingman import WingmanAgent
-from jarvis.app.launcher import JARVISLauncher
+from jarvis.app.cli import JARVISLauncher
 from jarvis.benchmarks.runner import benchmark_agentic_runtime
 
 
@@ -39,3 +39,7 @@ def main(argv: list[str] | None = None) -> None:
             if query: print(launcher.run(query, domain=args.domain))
         return
     print(launcher.run(args.query, domain=args.domain))
+
+
+if __name__ == "__main__":
+    main()

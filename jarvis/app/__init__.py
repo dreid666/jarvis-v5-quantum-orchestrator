@@ -1,5 +1,5 @@
 """Application entry points for JARVIS."""
 
-from .launcher import JARVISLauncher
+from .cli import JARVISLauncher
 
 __all__ = ["JARVISLauncher"]

@@ -28,8 +28,12 @@ class PolicyDecision:
 
 
 class ActionPolicy:
+    LOW_RISK_TOOLS = {"memory_lookup", "guardrail_check"}
+    MEDIUM_RISK_TOOLS = {"network", "http", "web_request", "api_call", "write_file", "rename_file", "synthesize"}
+    HIGH_RISK_TOOLS = {"shell", "subprocess", "bash", "cmd", "powershell", "curl", "wget", "delete_file"}
+    HIGH_RISK_NAMES = {"export_env", "read_secret", "write_secret"}
+
     def evaluate(self, action: Union[Mapping[str, Any], Any]) -> PolicyDecision:
-        # Handle both dict and PlannedAction objects
         if isinstance(action, dict):
             tool = str(action.get("tool", "")).casefold()
             name = str(action.get("name", "")).casefold()
@@ -37,11 +41,13 @@ class ActionPolicy:
             tool = str(getattr(action, "tool", "")).casefold()
             name = str(getattr(action, "name", "")).casefold()
 
-        if tool in {"shell", "subprocess", "bash", "cmd", "powershell", "delete_file"} or name in {"read_secret", "write_secret"}:
+        if tool in self.HIGH_RISK_TOOLS or name in self.HIGH_RISK_NAMES:
             return PolicyDecision(RiskLevel.HIGH.value, ApprovalState.PENDING, requires_approval=True)
-        if tool in {"network", "http", "api_call", "write_file", "rename_file", "synthesize"}:
+        if tool in self.MEDIUM_RISK_TOOLS:
             return PolicyDecision(RiskLevel.MEDIUM.value, ApprovalState.PENDING, requires_approval=True)
-        return PolicyDecision(RiskLevel.LOW.value, ApprovalState.ALLOWED, requires_approval=False)
+        if tool in self.LOW_RISK_TOOLS:
+            return PolicyDecision(RiskLevel.LOW.value, ApprovalState.ALLOWED, requires_approval=False)
+        return PolicyDecision(RiskLevel.HIGH.value, ApprovalState.PENDING, requires_approval=True)
 
     def approve(self, action: Union[Mapping[str, Any], Any]) -> ApprovalState:
         decision = self.evaluate(action)

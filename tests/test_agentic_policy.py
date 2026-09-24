@@ -1,62 +1,22 @@
 """Deterministic benchmark runner for agentic runtime checks."""
 
-from __future__ import annotations
+import pytest
 
-import statistics
-import time
-from typing import Any
-
-from jarvis.agentic.wingman import WingmanAgent
+from jarvis.benchmarks.runner import benchmark_agentic_runtime
 from jarvis.execution.safe_python import SafePythonEvaluator
 
 
-def benchmark_agentic_runtime(iterations: int = 5) -> dict[str, Any]:
-    if iterations < 1:
-        raise ValueError("iterations must be >= 1")
+def test_benchmark_agentic_runtime_completes():
+    result = benchmark_agentic_runtime(1)
+    assert result["iterations"] == 1
+    assert result["full_pipeline_ms"]["mean"] >= 0
 
-    guardrail_samples: list[float] = []
-    planner_samples: list[float] = []
-    evaluator_samples: list[float] = []
-    full_samples: list[float] = []
 
-    evaluator = SafePythonEvaluator()
-    agent = WingmanAgent()
+def test_safe_python_rejects_large_exponent():
+    with pytest.raises(ValueError, match="power exponent too large"):
+        SafePythonEvaluator().evaluate("10 ** 10**9")
 
-    for _ in range(iterations):
-        start = time.perf_counter()
-        agent.guardrail.screen("Design a secure quantum workflow with safe, deterministic evaluation.")
-        guardrail_samples.append((time.perf_counter() - start) * 1000)
 
-        start = time.perf_counter()
-        agent.plan("Design and validate a secure quantum workflow")
-        planner_samples.append((time.perf_counter() - start) * 1000)
-
-        start = time.perf_counter()
-        evaluator.evaluate("(2 + 3) * 7")
-        evaluator_samples.append((time.perf_counter() - start) * 1000)
-
-        start = time.perf_counter()
-        result = agent.execute("Design and validate a secure quantum workflow")
-        full_samples.append((time.perf_counter() - start) * 1000)
-        if not result["approved"]:
-            raise RuntimeError("unexpected approval failure in benchmark")
-
-    return {
-        "iterations": iterations,
-        "guardrail_ms": {
-            "mean": round(statistics.mean(guardrail_samples), 3),
-            "p95": round(sorted(guardrail_samples)[max(0, int(0.95 * len(guardrail_samples)) - 1)], 3),
-        },
-        "planner_ms": {
-            "mean": round(statistics.mean(planner_samples), 3),
-            "p95": round(sorted(planner_samples)[max(0, int(0.95 * len(planner_samples)) - 1)], 3),
-        },
-        "evaluator_ms": {
-            "mean": round(statistics.mean(evaluator_samples), 3),
-            "p95": round(sorted(evaluator_samples)[max(0, int(0.95 * len(evaluator_samples)) - 1)], 3),
-        },
-        "full_pipeline_ms": {
-            "mean": round(statistics.mean(full_samples), 3),
-            "p95": round(sorted(full_samples)[max(0, int(0.95 * len(full_samples)) - 1)], 3),
-        },
-    }
+def test_safe_python_rejects_large_list_repetition():
+    with pytest.raises(ValueError, match="collection result too large"):
+        SafePythonEvaluator().evaluate("[0] * 10001")

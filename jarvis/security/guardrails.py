@@ -34,6 +34,7 @@ class PromptGuardrail:
         return re.sub(r"\s+", " ", value)
 
     def screen(self, prompt: str) -> tuple[bool, tuple[str, ...]]:
+        newline_count = prompt.count("\n") if isinstance(prompt, str) else 0
         text = self.normalize(prompt)
         issues: list[str] = []
 
@@ -47,7 +48,7 @@ class PromptGuardrail:
             if pattern in lowered:
                 issues.append(f"contains disallowed pattern: {pattern}")
 
-        if text.count("\n") > 20:
+        if newline_count > 20:
             issues.append("prompt contains excessive newlines")
 
         return not issues, tuple(issues)
