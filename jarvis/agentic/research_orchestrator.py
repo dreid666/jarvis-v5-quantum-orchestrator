@@ -365,6 +365,14 @@ class CapabilityAuthorizer:
 class AuthorizedToolRegistry:
     """Registered tool execution with explicit authorization decisions."""
 
+    _STRUCTURED_HANDLER_EXCEPTIONS = (
+        ArithmeticError,
+        AttributeError,
+        LookupError,
+        RuntimeError,
+        TypeError,
+    )
+
     def __init__(self, authorizer: CapabilityAuthorizer | None = None) -> None:
         self._tools: dict[str, RegisteredTool] = {}
         self._authorizer = authorizer or CapabilityAuthorizer()
@@ -419,7 +427,7 @@ class AuthorizedToolRegistry:
                 payload=None,
                 authorization=authorization,
             )
-        except Exception:
+        except self._STRUCTURED_HANDLER_EXCEPTIONS:
             return ToolExecutionResult(
                 status="failed",
                 summary=f"{call.tool_name} execution failed",
