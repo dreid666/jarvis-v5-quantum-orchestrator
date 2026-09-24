@@ -217,6 +217,22 @@ def test_handler_exceptions_become_structured_failures():
     assert result.payload is None
 
 
+def test_not_implemented_errors_are_not_masked():
+    orchestrator = ResearchOrchestrator()
+
+    def unimplemented() -> None:
+        raise NotImplementedError("todo")
+
+    orchestrator.tools.register("unimplemented", unimplemented)
+
+    with pytest.raises(NotImplementedError, match="todo"):
+        orchestrator.tools.execute(
+            PlannedToolCall("todo", "unimplemented", {}),
+            trusted_mode=False,
+            approved_actions=frozenset(),
+        )
+
+
 def test_retry_success_allows_execution_to_complete():
     runner = SequenceSandboxRunner(
         [

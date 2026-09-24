@@ -427,6 +427,8 @@ class AuthorizedToolRegistry:
                 payload=None,
                 authorization=authorization,
             )
+        except NotImplementedError:
+            raise
         except self._STRUCTURED_HANDLER_EXCEPTIONS:
             return ToolExecutionResult(
                 status="failed",
