@@ -416,12 +416,14 @@ class ResearchOrchestrator:
             if value == expected:
                 matches_expected = True
             elif isinstance(value, Real) and isinstance(expected, Real) and not isinstance(value, bool) and not isinstance(expected, bool):
-                try:
-                    difference = abs(value - expected)
-                    scale = max(abs(value), abs(expected), 1)
-                    matches_expected = difference <= max(1e-9, scale * 1e-9)
-                except TypeError:
-                    matches_expected = math.isclose(float(value), float(expected), rel_tol=1e-9, abs_tol=1e-9)
+                left = float(value)
+                right = float(expected)
+                matches_expected = math.isfinite(left) and math.isfinite(right) and math.isclose(
+                    left,
+                    right,
+                    rel_tol=1e-9,
+                    abs_tol=1e-9,
+                )
             else:
                 matches_expected = False
         return {"value": value, "matches_expected": matches_expected}

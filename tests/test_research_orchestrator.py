@@ -97,6 +97,13 @@ def test_symbolic_verification_uses_tolerance_for_numeric_results():
     assert result.status == "success"
     assert result.payload["matches_expected"] is True
 
+    nan_result = orchestrator.tools.execute(
+        PlannedToolCall("verify", "verify_symbolic", {"expression": "sqrt(4)", "expected": float("nan")}),
+        trusted_mode=False,
+        approved_actions=frozenset(),
+    )
+    assert nan_result.payload["matches_expected"] is False
+
 
 def test_retry_success_allows_execution_to_complete():
     runner = SequenceSandboxRunner(
