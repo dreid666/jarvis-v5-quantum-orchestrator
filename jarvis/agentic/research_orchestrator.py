@@ -413,10 +413,12 @@ class ResearchOrchestrator:
         value = self.evaluator.evaluate(expression)
         matches_expected = True
         if expected is not None:
-            if isinstance(value, Real) and isinstance(expected, Real) and not isinstance(value, bool) and not isinstance(expected, bool):
+            if value == expected:
+                matches_expected = True
+            elif isinstance(value, Real) and isinstance(expected, Real) and not isinstance(value, bool) and not isinstance(expected, bool) and (isinstance(value, float) or isinstance(expected, float)):
                 matches_expected = math.isclose(float(value), float(expected), rel_tol=1e-9, abs_tol=1e-9)
             else:
-                matches_expected = value == expected
+                matches_expected = False
         return {"value": value, "matches_expected": matches_expected}
 
     def _execute_python(self, code: str) -> SandboxRunResult:

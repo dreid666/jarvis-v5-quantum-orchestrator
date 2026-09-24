@@ -15,8 +15,8 @@ embeddings = ["sentence-transformers>=2.2", "torch>=2.0"]
 quantum = ["pennylane>=0.35"]
 qiskit = ["qiskit>=1.0", "qiskit-ibm-runtime>=0.20"]
 pytket = ["pytket>=1.20"]
-test = ["pytest>=7.0", "pytest-cov>=4.1"]
-dev = ["build>=1.2.0", "pytest>=7.0", "pytest-cov>=4.1"]
+test = ["pytest>=7.0", "pytest-cov>=4.1", "PyYAML>=6.0.1"]
+dev = ["build>=1.2.0", "pytest>=7.0", "pytest-cov>=4.1", "PyYAML>=6.0.1"]
 
 [project.scripts]
 jarvis = "jarvis_launch:main"

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_PATHS = (
@@ -13,14 +15,12 @@ SKILL_PATHS = (
 )
 
 
-def _frontmatter_map(path: Path) -> dict[str, str]:
+def _frontmatter_map(path: Path) -> dict[str, object]:
     text = path.read_text()
     assert text.startswith("---\n")
     _, frontmatter, _ = text.split("---\n", 2)
-    data: dict[str, str] = {}
-    for line in frontmatter.strip().splitlines():
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip().strip('"')
+    data = yaml.safe_load(frontmatter)
+    assert isinstance(data, dict)
     return data
 
 
