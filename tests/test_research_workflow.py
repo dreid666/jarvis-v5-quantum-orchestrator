@@ -29,6 +29,14 @@ class FakeSandbox:
         return {"status": "ok", "result": code.count("=")}
 
 
+class UnavailableSandbox:
+    def available(self) -> bool:
+        return False
+
+    def execute(self, code: str):
+        return {"status": "unavailable", "message": "sandbox unavailable"}
+
+
 def test_safe_python_evaluator_rejects_unsafe_ast_nodes():
     evaluator = SafePythonEvaluator()
     assert evaluator.evaluate("(2 + 3) * 7") == 35
@@ -96,6 +104,8 @@ def test_research_workflow_assertions_and_retry_results_are_preserved():
         agent.verify_assertion("sum([1, 2, 3])", 6)
     with pytest.raises(ValueError):
         agent.verify_assertion("pow(2, y=3)", 8)
+    with pytest.raises(ValueError):
+        agent.verify_assertion("(1 +", 0)
 
     attempts = {"count": 0}
 
@@ -157,3 +167,15 @@ def test_research_workflow_run_returns_structured_assertion_error():
     assert result["status"] == "error"
     assert result["assertion"]["status"] == "error"
     assert result["assertion"]["matched"] is False
+
+
+def test_research_workflow_status_prioritizes_errors_over_unavailable():
+    result = ResearchWorkflowAgent().run(
+        "evaluate a local hypothesis",
+        sandbox=UnavailableSandbox(),
+        arithmetic_assertion="(1 +",
+        expected_value=0,
+    )
+    assert result["code_execution"]["status"] == "unavailable"
+    assert result["assertion"]["status"] == "error"
+    assert result["status"] == "error"

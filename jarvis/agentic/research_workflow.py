@@ -52,7 +52,10 @@ class SafeArithmeticEvaluator:
     def evaluate(self, expression: str, context: Mapping[str, Any] | None = None) -> Any:
         if not isinstance(expression, str) or not expression.strip():
             raise ValueError("expression must be a non-empty string")
-        tree = ast.parse(expression, mode="eval")
+        try:
+            tree = ast.parse(expression, mode="eval")
+        except SyntaxError as exc:
+            raise ValueError(f"invalid syntax: {exc}") from exc
         return self._eval_node(tree.body, dict(context or {}))
 
     def _eval_node(self, node: ast.AST, context: Mapping[str, Any]) -> Any:
@@ -361,10 +364,18 @@ class ResearchWorkflowAgent:
             allow_external=False,
         )
         status = "ok"
-        for candidate in (retrieval, code_execution, assertion, summary):
-            if candidate and candidate.get("status") in {"pending_approval", "disabled", "blocked", "rejected", "error", "unavailable"}:
-                status = candidate["status"]
-                break
+        status_priority = {
+            "blocked": 5,
+            "error": 4,
+            "rejected": 3,
+            "pending_approval": 2,
+            "disabled": 1,
+            "unavailable": 0,
+        }
+        candidates = [candidate.get("status") for candidate in (retrieval, code_execution, assertion, summary) if candidate]
+        non_ok = [item for item in candidates if item in status_priority]
+        if non_ok:
+            status = max(non_ok, key=lambda item: status_priority[item])
         return {
             "status": status,
             "approved": status == "ok",
