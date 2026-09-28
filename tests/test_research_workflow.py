@@ -38,6 +38,8 @@ def test_safe_python_evaluator_rejects_unsafe_ast_nodes():
         evaluator.evaluate("os.path.join('a', 'b')")
     with pytest.raises(ValueError):
         evaluator.evaluate("int('7')")
+    with pytest.raises(ValueError):
+        evaluator.evaluate("pow(2, x=3)")
 
 
 def test_research_workflow_reports_unavailable_retrieval_without_fabrication():
@@ -92,6 +94,8 @@ def test_research_workflow_assertions_and_retry_results_are_preserved():
         agent.verify_assertion("__import__('os').system('id')", 0)
     with pytest.raises(ValueError):
         agent.verify_assertion("sum([1, 2, 3])", 6)
+    with pytest.raises(ValueError):
+        agent.verify_assertion("pow(2, y=3)", 8)
 
     attempts = {"count": 0}
 

@@ -85,6 +85,8 @@ class SafePythonEvaluator:
             func_name = node.func.id
             if func_name not in self.SAFE_FUNCS:
                 raise ValueError(f"function not allowed: {func_name}")
+            if node.keywords:
+                raise ValueError("keyword arguments are not allowed")
             args = [self._eval_node(arg, context) for arg in node.args]
             return self.SAFE_FUNCS[func_name](*args)
         if isinstance(node, ast.Tuple):

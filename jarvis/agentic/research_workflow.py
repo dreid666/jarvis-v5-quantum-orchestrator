@@ -118,6 +118,8 @@ class SafeArithmeticEvaluator:
                 raise ValueError("only direct function calls are allowed")
             if node.func.id not in self.SAFE_FUNCS:
                 raise ValueError(f"function not allowed: {node.func.id}")
+            if node.keywords:
+                raise ValueError("keyword arguments are not allowed")
             args = [self._eval_node(arg, context) for arg in node.args]
             return self.SAFE_FUNCS[node.func.id](*args)
         if isinstance(node, ast.Tuple):
@@ -312,7 +314,11 @@ class ResearchWorkflowAgent:
             }
 
         plan = self.plan(goal, request_retrieval=retrieval_backend is not None, request_execution=sandbox is not None)
-        retrieval = self.retrieve_literature(goal, backend=retrieval_backend, approve=approve, allow_external=allow_external)
+        retrieval = (
+            self.retrieve_literature(goal, backend=retrieval_backend, approve=approve, allow_external=allow_external)
+            if retrieval_backend is not None
+            else {"status": "skipped", "query": goal, "results": [], "message": "retrieval not requested"}
+        )
         assertion = None
         if arithmetic_assertion is not None:
             assertion = self.verify_assertion(arithmetic_assertion, expected_value)
@@ -327,7 +333,7 @@ class ResearchWorkflowAgent:
             "kind": "hypothesis",
         }]
         uncertainty = []
-        if retrieval.get("status") != "ok":
+        if retrieval.get("status") not in {"ok", "skipped"}:
             uncertainty.append(retrieval.get("message", "retrieval unavailable"))
         if code_execution and code_execution.get("status") != "ok":
             uncertainty.append(code_execution.get("message", "sandbox unavailable"))
@@ -345,7 +351,7 @@ class ResearchWorkflowAgent:
         )
         status = "ok"
         for candidate in (retrieval, code_execution, summary):
-            if candidate and candidate.get("status") in {"pending_approval", "disabled", "blocked", "rejected", "error"}:
+            if candidate and candidate.get("status") in {"pending_approval", "disabled", "blocked", "rejected", "error", "unavailable"}:
                 status = candidate["status"]
                 break
         return {
