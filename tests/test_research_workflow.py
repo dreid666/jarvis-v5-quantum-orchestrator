@@ -97,6 +97,7 @@ def test_research_workflow_uses_controlled_sandbox_interface():
 def test_research_workflow_assertions_and_retry_results_are_preserved():
     agent = ResearchWorkflowAgent()
     assert agent.verify_assertion("120 + 165", 285)["matched"] is True
+    assert agent.verify_assertion("3 * 5", 10)["status"] == "error"
 
     with pytest.raises(ValueError):
         agent.verify_assertion("__import__('os').system('id')", 0)
@@ -178,4 +179,14 @@ def test_research_workflow_status_prioritizes_errors_over_unavailable():
     )
     assert result["code_execution"]["status"] == "unavailable"
     assert result["assertion"]["status"] == "error"
+    assert result["status"] == "error"
+
+
+def test_research_workflow_run_treats_assertion_mismatch_as_non_ok():
+    result = ResearchWorkflowAgent().run(
+        "evaluate a local hypothesis",
+        arithmetic_assertion="3 * 5",
+        expected_value=10,
+    )
+    assert result["assertion"]["matched"] is False
     assert result["status"] == "error"

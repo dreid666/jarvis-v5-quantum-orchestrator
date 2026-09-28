@@ -1,12 +1,12 @@
 """Safe, approval-aware research workflow utilities."""
 from __future__ import annotations
 
-import ast
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Protocol
 
 from jarvis.agentic.policy import ActionPolicy, ApprovalState
 from jarvis.execution.plan import ExecutionPlan, PlannedAction
+from jarvis.execution.safe_python import SafePythonEvaluator
 from jarvis.security.audit import AuditLog
 from jarvis.security.guardrails import PromptGuardrail
 
@@ -37,103 +37,8 @@ class ToolSpec:
     external: bool = False
 
 
-class SafeArithmeticEvaluator:
-    """Evaluate a narrow arithmetic subset without using exec/eval."""
-
-    SAFE_FUNCS = {
-        "abs": abs,
-        "min": min,
-        "max": max,
-        "round": round,
-        "pow": pow,
-    }
-    MAX_SEQUENCE_ITEMS = 32
-
-    def evaluate(self, expression: str, context: Mapping[str, Any] | None = None) -> Any:
-        if not isinstance(expression, str) or not expression.strip():
-            raise ValueError("expression must be a non-empty string")
-        try:
-            tree = ast.parse(expression, mode="eval")
-        except SyntaxError as exc:
-            raise ValueError(f"invalid syntax: {exc}") from exc
-        return self._eval_node(tree.body, dict(context or {}))
-
-    def _eval_node(self, node: ast.AST, context: Mapping[str, Any]) -> Any:
-        if isinstance(node, ast.Constant):
-            if type(node.value) not in (int, float, bool):
-                raise ValueError("unsupported constant type")
-            return node.value
-        if isinstance(node, ast.Name):
-            if node.id not in context:
-                raise ValueError(f"name not allowed: {node.id}")
-            value = context[node.id]
-            if type(value) not in (int, float, bool):
-                raise ValueError(f"unsupported value for name: {node.id}")
-            return value
-        if isinstance(node, ast.BinOp):
-            left = self._eval_node(node.left, context)
-            right = self._eval_node(node.right, context)
-            if type(node.op) is ast.Add:
-                return left + right
-            if type(node.op) is ast.Sub:
-                return left - right
-            if type(node.op) is ast.Mult:
-                return left * right
-            if type(node.op) is ast.Div:
-                return left / right
-            if type(node.op) is ast.FloorDiv:
-                return left // right
-            if type(node.op) is ast.Mod:
-                return left % right
-            if type(node.op) is ast.Pow:
-                return left ** right
-            raise ValueError("operator not allowed")
-        if isinstance(node, ast.UnaryOp):
-            value = self._eval_node(node.operand, context)
-            if type(node.op) is ast.UAdd:
-                return +value
-            if type(node.op) is ast.USub:
-                return -value
-            raise ValueError("unary operator not allowed")
-        if isinstance(node, ast.Compare):
-            left = self._eval_node(node.left, context)
-            result = True
-            for op, comparator in zip(node.ops, node.comparators):
-                right = self._eval_node(comparator, context)
-                if type(op) is ast.Eq:
-                    result = result and (left == right)
-                elif type(op) is ast.NotEq:
-                    result = result and (left != right)
-                elif type(op) is ast.Lt:
-                    result = result and (left < right)
-                elif type(op) is ast.LtE:
-                    result = result and (left <= right)
-                elif type(op) is ast.Gt:
-                    result = result and (left > right)
-                elif type(op) is ast.GtE:
-                    result = result and (left >= right)
-                else:
-                    raise ValueError("comparison operator not allowed")
-                left = right
-            return result
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name):
-                raise ValueError("only direct function calls are allowed")
-            if node.func.id not in self.SAFE_FUNCS:
-                raise ValueError(f"function not allowed: {node.func.id}")
-            if node.keywords:
-                raise ValueError("keyword arguments are not allowed")
-            args = [self._eval_node(arg, context) for arg in node.args]
-            return self.SAFE_FUNCS[node.func.id](*args)
-        if isinstance(node, ast.Tuple):
-            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
-                raise ValueError("sequence too large")
-            return tuple(self._eval_node(item, context) for item in node.elts)
-        if isinstance(node, ast.List):
-            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
-                raise ValueError("sequence too large")
-            return [self._eval_node(item, context) for item in node.elts]
-        raise ValueError(f"syntax not allowed: {type(node).__name__}")
+class SafeArithmeticEvaluator(SafePythonEvaluator):
+    """Compatibility wrapper around the shared safe evaluator."""
 
 
 class ResearchWorkflowAgent:
@@ -268,7 +173,7 @@ class ResearchWorkflowAgent:
     ) -> dict[str, Any]:
         actual = self.evaluator.evaluate(expression, context=context)
         return {
-            "status": "ok",
+            "status": "ok" if actual == expected else "error",
             "actual": actual,
             "expected": expected,
             "matched": actual == expected,
