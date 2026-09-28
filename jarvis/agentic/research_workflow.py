@@ -321,7 +321,16 @@ class ResearchWorkflowAgent:
         )
         assertion = None
         if arithmetic_assertion is not None:
-            assertion = self.verify_assertion(arithmetic_assertion, expected_value)
+            try:
+                assertion = self.verify_assertion(arithmetic_assertion, expected_value)
+            except ValueError as exc:
+                assertion = {
+                    "status": "error",
+                    "actual": None,
+                    "expected": expected_value,
+                    "matched": False,
+                    "message": str(exc),
+                }
         code_execution = None
         if sandbox is not None:
             code_execution = self.execute_code("result = 1", sandbox=sandbox, approve=approve, allow_external=allow_external)
@@ -337,7 +346,9 @@ class ResearchWorkflowAgent:
             uncertainty.append(retrieval.get("message", "retrieval unavailable"))
         if code_execution and code_execution.get("status") != "ok":
             uncertainty.append(code_execution.get("message", "sandbox unavailable"))
-        if assertion and not assertion["matched"]:
+        if assertion and assertion.get("status") == "error":
+            uncertainty.append(assertion["message"])
+        elif assertion and not assertion["matched"]:
             uncertainty.append(assertion["message"])
 
         summary = self.execute_tool(
@@ -350,7 +361,7 @@ class ResearchWorkflowAgent:
             allow_external=False,
         )
         status = "ok"
-        for candidate in (retrieval, code_execution, summary):
+        for candidate in (retrieval, code_execution, assertion, summary):
             if candidate and candidate.get("status") in {"pending_approval", "disabled", "blocked", "rejected", "error", "unavailable"}:
                 status = candidate["status"]
                 break

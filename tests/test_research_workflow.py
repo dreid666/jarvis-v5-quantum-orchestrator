@@ -146,3 +146,14 @@ def test_research_workflow_run_propagates_pending_approval():
     )
     assert result["status"] == "pending_approval"
     assert result["retrieval"]["status"] == "pending_approval"
+
+
+def test_research_workflow_run_returns_structured_assertion_error():
+    result = ResearchWorkflowAgent().run(
+        "evaluate a local hypothesis",
+        arithmetic_assertion="__import__('os').system('id')",
+        expected_value=0,
+    )
+    assert result["status"] == "error"
+    assert result["assertion"]["status"] == "error"
+    assert result["assertion"]["matched"] is False
