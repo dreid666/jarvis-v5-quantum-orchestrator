@@ -44,10 +44,10 @@ class SafeArithmeticEvaluator:
         "abs": abs,
         "min": min,
         "max": max,
-        "sum": sum,
         "round": round,
         "pow": pow,
     }
+    MAX_SEQUENCE_ITEMS = 32
 
     def evaluate(self, expression: str, context: Mapping[str, Any] | None = None) -> Any:
         if not isinstance(expression, str) or not expression.strip():
@@ -121,8 +121,12 @@ class SafeArithmeticEvaluator:
             args = [self._eval_node(arg, context) for arg in node.args]
             return self.SAFE_FUNCS[node.func.id](*args)
         if isinstance(node, ast.Tuple):
+            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
+                raise ValueError("sequence too large")
             return tuple(self._eval_node(item, context) for item in node.elts)
         if isinstance(node, ast.List):
+            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
+                raise ValueError("sequence too large")
             return [self._eval_node(item, context) for item in node.elts]
         raise ValueError(f"syntax not allowed: {type(node).__name__}")
 
@@ -340,7 +344,7 @@ class ResearchWorkflowAgent:
             allow_external=False,
         )
         status = "ok"
-        for candidate in (retrieval, code_execution):
+        for candidate in (retrieval, code_execution, summary):
             if candidate and candidate.get("status") in {"pending_approval", "disabled", "blocked", "rejected", "error"}:
                 status = candidate["status"]
                 break

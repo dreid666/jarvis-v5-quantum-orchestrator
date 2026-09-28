@@ -13,14 +13,10 @@ class SafePythonEvaluator:
         "abs": abs,
         "min": min,
         "max": max,
-        "sum": sum,
-        "len": len,
         "round": round,
         "pow": pow,
-        "int": int,
-        "float": float,
-        "bool": bool,
     }
+    MAX_SEQUENCE_ITEMS = 32
 
     def evaluate(self, expr: str, context: Optional[dict[str, Any]] = None) -> Any:
         if not isinstance(expr, str) or not expr.strip():
@@ -49,7 +45,7 @@ class SafePythonEvaluator:
 
     def _eval_node(self, node: ast.AST, context: Mapping[str, Any]) -> Any:
         if isinstance(node, ast.Constant):
-            if type(node.value) not in (int, float, bool, str):
+            if type(node.value) not in (int, float, bool):
                 raise ValueError("unsupported constant type")
             return node.value
         if isinstance(node, ast.Name):
@@ -92,7 +88,11 @@ class SafePythonEvaluator:
             args = [self._eval_node(arg, context) for arg in node.args]
             return self.SAFE_FUNCS[func_name](*args)
         if isinstance(node, ast.Tuple):
+            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
+                raise ValueError("sequence too large")
             return tuple(self._eval_node(item, context) for item in node.elts)
         if isinstance(node, ast.List):
+            if len(node.elts) > self.MAX_SEQUENCE_ITEMS:
+                raise ValueError("sequence too large")
             return [self._eval_node(item, context) for item in node.elts]
         raise ValueError(f"syntax not allowed: {type(node).__name__}")

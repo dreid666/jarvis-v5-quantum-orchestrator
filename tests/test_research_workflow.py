@@ -36,6 +36,8 @@ def test_safe_python_evaluator_rejects_unsafe_ast_nodes():
         evaluator.evaluate("__import__('os').system('id')")
     with pytest.raises(ValueError):
         evaluator.evaluate("os.path.join('a', 'b')")
+    with pytest.raises(ValueError):
+        evaluator.evaluate("int('7')")
 
 
 def test_research_workflow_reports_unavailable_retrieval_without_fabrication():
@@ -88,6 +90,8 @@ def test_research_workflow_assertions_and_retry_results_are_preserved():
 
     with pytest.raises(ValueError):
         agent.verify_assertion("__import__('os').system('id')", 0)
+    with pytest.raises(ValueError):
+        agent.verify_assertion("sum([1, 2, 3])", 6)
 
     attempts = {"count": 0}
 
@@ -127,3 +131,14 @@ def test_research_workflow_run_signature_and_shape():
     assert result["status"] == "ok"
     assert result["assertion"]["matched"] is True
     assert result["hypotheses"][0]["kind"] == "hypothesis"
+
+
+def test_research_workflow_run_propagates_pending_approval():
+    result = ResearchWorkflowAgent().run(
+        "evaluate a hypothesis with external evidence",
+        retrieval_backend=FakeRetrievalBackend(),
+        allow_external=True,
+        approve=False,
+    )
+    assert result["status"] == "pending_approval"
+    assert result["retrieval"]["status"] == "pending_approval"
