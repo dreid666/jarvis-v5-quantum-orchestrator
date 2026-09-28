@@ -28,6 +28,10 @@ class TestV7(unittest.TestCase):
         self.assertTrue(success); self.assertEqual(len(trace), 4); self.assertIn("Executed 4", summary)
 
     def test_dashboard(self):
+        try:
+            import matplotlib  # noqa: F401
+        except ModuleNotFoundError:
+            self.skipTest("matplotlib is not installed in this test environment")
         with tempfile.TemporaryDirectory() as directory:
             path = JARVISQuantumDashboard.render_dashboard(JARVISCore(), os.path.join(directory, "dashboard.png"))
             self.assertGreater(os.path.getsize(path), 1000)
