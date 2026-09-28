@@ -64,21 +64,24 @@ class SafePythonEvaluator:
         if isinstance(node, ast.BinOp):
             left = self._eval_node(node.left, context)
             right = self._eval_node(node.right, context)
-            if type(node.op) is ast.Add:
-                return left + right
-            if type(node.op) is ast.Sub:
-                return left - right
-            if type(node.op) is ast.Mult:
-                return left * right
-            if type(node.op) is ast.Div:
-                return left / right
-            if type(node.op) is ast.Pow:
-                self._validate_pow_operands(left, right)
-                return left ** right
-            if type(node.op) is ast.FloorDiv:
-                return left // right
-            if type(node.op) is ast.Mod:
-                return left % right
+            try:
+                if type(node.op) is ast.Add:
+                    return left + right
+                if type(node.op) is ast.Sub:
+                    return left - right
+                if type(node.op) is ast.Mult:
+                    return left * right
+                if type(node.op) is ast.Div:
+                    return left / right
+                if type(node.op) is ast.Pow:
+                    self._validate_pow_operands(left, right)
+                    return left ** right
+                if type(node.op) is ast.FloorDiv:
+                    return left // right
+                if type(node.op) is ast.Mod:
+                    return left % right
+            except ArithmeticError as exc:
+                raise ValueError(f"evaluation failed: {exc}") from exc
             raise ValueError("operator not allowed")
         if isinstance(node, ast.UnaryOp):
             value = self._eval_node(node.operand, context)

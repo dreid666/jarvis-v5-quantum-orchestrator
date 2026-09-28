@@ -274,8 +274,6 @@ class ResearchWorkflowAgent:
             "error": 4,
             "rejected": 3,
             "pending_approval": 2,
-            "disabled": 1,
-            "unavailable": 0,
         }
         candidates = [candidate.get("status") for candidate in (retrieval, code_execution, assertion, summary) if candidate]
         non_ok = [item for item in candidates if item in status_priority]

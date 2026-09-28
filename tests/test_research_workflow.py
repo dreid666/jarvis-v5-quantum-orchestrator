@@ -48,6 +48,12 @@ def test_safe_python_evaluator_rejects_unsafe_ast_nodes():
         evaluator.evaluate("int('7')")
     with pytest.raises(ValueError):
         evaluator.evaluate("pow(2, x=3)")
+    with pytest.raises(ValueError):
+        evaluator.evaluate("1 / 0")
+    with pytest.raises(ValueError):
+        evaluator.evaluate("1 // 0")
+    with pytest.raises(ValueError):
+        evaluator.evaluate("1 % 0")
 
 
 def test_research_workflow_reports_unavailable_retrieval_without_fabrication():
@@ -190,3 +196,14 @@ def test_research_workflow_run_treats_assertion_mismatch_as_non_ok():
     )
     assert result["assertion"]["matched"] is False
     assert result["status"] == "error"
+
+
+def test_research_workflow_run_keeps_optional_unavailable_capability_informational():
+    result = ResearchWorkflowAgent().run(
+        "evaluate a local hypothesis",
+        sandbox=UnavailableSandbox(),
+        arithmetic_assertion="3 * 5",
+        expected_value=15,
+    )
+    assert result["code_execution"]["status"] == "unavailable"
+    assert result["status"] == "ok"
