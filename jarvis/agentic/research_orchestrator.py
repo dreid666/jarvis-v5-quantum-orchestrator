@@ -398,7 +398,16 @@ class ResearchOrchestrator:
         }
 
     def _retrieve_literature(self, query: str, limit: int = 3) -> RetrievalResult:
-        return self.retrieval_provider.search(query, limit=limit)
+        result = self.retrieval_provider.search(query, limit=limit)
+        if result.available and (
+            not result.documents
+            or any(
+                not (document.title.strip() or document.citation.strip() or document.uri.strip())
+                for document in result.documents
+            )
+        ):
+            return RetrievalResult(False, (), "Retrieval result lacked source metadata; no results returned.")
+        return result
 
     def _verify_symbolic(self, expression: str, expected: Any | None = None) -> dict[str, Any]:
         value = self.evaluator.evaluate(expression)
